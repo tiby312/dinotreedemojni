@@ -13,6 +13,11 @@ struct Repr<T>{
     size:usize,
 }
 
+#[repr(C)]
+struct ReprMut<T>{
+    ptr:*mut T,
+    size:usize,
+}
 
 fn rust_game_create(startx:c_int,starty:c_int)->(*mut MenuGame){
 	let mm=MenuGame::new(startx as usize,starty as usize);
@@ -23,18 +28,27 @@ fn rust_game_destroy(menu:*mut MenuGame){
 	 drop(unsafe{Box::from_raw(menu)});
 }
 
-fn rust_game_step(menu:*mut MenuGame,poses:*const [f32;2],num_poses:usize,icolor:*mut f32)->bool{
+fn rust_game_step(menu:*mut MenuGame,poses:*const [f32;2],num_poses:usize,icolor:*mut f32,verts:*mut [f32;2],size:usize)->bool{
 	if menu.is_null(){
 		return false;
 	}
 	let menu=unsafe{&mut (*menu)};
 
+    let verts={
+            #[repr(C)]
+        struct Repr<T>{
+            ptr:*const T,
+            size:usize,
+        }
 
+        let k:&mut [dinotreedemo::Vert]=unsafe{std::mem::transmute(Repr{ptr:verts,size:size})};
+        k 
+    };
 
 	let tr=Repr{ptr:poses,size:num_poses};
 
 	let poses:&[axgeom::Vec2]=unsafe{std::mem::transmute(tr)};
-	let (color,is_game) = menu.step(poses);
+	let (color,is_game) = menu.step(poses,verts);
 
     match color{
         Some(color)=>{
@@ -52,7 +66,7 @@ fn rust_game_num_verticies(menu:*mut MenuGame)->usize{
 
     menu.get_num_verticies()
 }
-
+/*
 fn rust_game_verticies(menu:*mut MenuGame,verts:*mut [f32;2],size:usize){
 	let menu=unsafe{&mut (*menu)};
 
@@ -67,7 +81,7 @@ fn rust_game_verticies(menu:*mut MenuGame,verts:*mut [f32;2],size:usize){
 	//let k:Repr<[f32;2]>=unsafe{std::mem::transmute(menu.get_verticies())};
 	//(k.ptr,k.size)
 }
-
+*/
 
 /// Expose the JNI interface for android below
 //#[cfg(target_os="android")]
@@ -113,7 +127,7 @@ pub mod android {
         //game.get_num_verticies().len() as jint
     }
     #[no_mangle]
-    pub unsafe extern "C" fn Java_kenreed_dinotreedemo_DinoGame_gameStep(env: JNIEnv, _: JClass, game:jlong,poses:jfloatArray,colors:jfloatArray) ->jint {
+    pub unsafe extern "C" fn Java_kenreed_dinotreedemo_DinoGame_gameStep(env: JNIEnv, _: JClass, game:jlong,poses:jfloatArray,colors:jfloatArray,jverts:JByteBuffer) ->jint {
         
 
         let len=env.get_array_length(poses).unwrap();
@@ -121,7 +135,7 @@ pub mod android {
         let mut buf=(0..len).map(|_|0.0).collect::<Vec<f32>>();
         
 
-        let (ptr,size)={
+        let (poses_ptr,poses_size)={
             let buf2:&mut [f32]=&mut buf;
             env.get_float_array_region(poses,0,buf2);
 
@@ -139,7 +153,22 @@ pub mod android {
         let mut col=[0.0f32;3];
         let colsptr:*mut f32=std::mem::transmute(&mut col[0]);
 
-		let val = rust_game_step(game,ptr,size,colsptr);
+        let (verts_ptr,verts_size)={       
+            let (buffptr,bufflen)={
+                let buff:&mut [u8]=env.get_direct_buffer_address(jverts).unwrap();
+                let k:ReprMut<u8>=unsafe{std::mem::transmute(buff)};
+                (k.ptr,k.size)
+            };
+
+            let new_len=(bufflen/4)/2;
+            //let kk:&mut [f32;2]=unsafe{std::mem::transmute(buffptr)};
+            let data:&mut [[f32;2]]=unsafe{std::mem::transmute(Repr{ptr:buffptr,size:new_len})};
+
+
+            let ff:ReprMut<[f32;2]>=unsafe{std::mem::transmute(data)};
+            (ff.ptr,ff.size)
+        };
+		let val = rust_game_step(game,poses_ptr,poses_size,colsptr,verts_ptr,verts_size);
 
         if col.iter().fold(0.0,|acc,&x|acc+x)!=0.0{
             env.set_float_array_region(colors,0,&col);
@@ -174,24 +203,14 @@ pub mod android {
         }
     }
 
-
+    /*
     #[no_mangle]           
     pub unsafe extern "C" fn Java_kenreed_dinotreedemo_DinoGame_gameVerticies(env: JNIEnv, _: JClass,game:jlong,jbuff:JByteBuffer) {
         //let game:*mut MenuGame=std::mem::transmute(game);
 
         
         let game=conv::into_pointer(game);
-        #[repr(C)]
-        struct Repr<T>{
-            ptr:*const T,
-            size:usize,
-        }
-
-        #[repr(C)]
-        struct ReprMut<T>{
-            ptr:*mut T,
-            size:usize,
-        }
+      
 
         
         let (buffptr,bufflen)={
@@ -223,6 +242,7 @@ pub mod android {
         //std::mem::transmute(bb)
         */
     }
+    */
 
 }
 
