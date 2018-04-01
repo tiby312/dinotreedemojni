@@ -1,6 +1,7 @@
 
 extern crate dinotreedemo;
 extern crate axgeom;
+extern crate rayon;
 
 use dinotreedemo::MenuGame;
 
@@ -29,10 +30,13 @@ fn rust_game_destroy(menu:*mut MenuGame){
 }
 
 fn rust_game_step(menu:*mut MenuGame,poses:*const [f32;2],num_poses:usize,icolor:*mut f32,verts:*mut [f32;2],size:usize)->bool{
-	if menu.is_null(){
+	
+    if menu.is_null(){
 		return false;
 	}
-	let menu=unsafe{&mut (*menu)};
+	
+
+    let menu=unsafe{&mut (*menu)};
 
     let verts={
             #[repr(C)]
@@ -54,9 +58,18 @@ fn rust_game_step(menu:*mut MenuGame,poses:*const [f32;2],num_poses:usize,icolor
         Some(color)=>{
             let jj:&mut [f32]=unsafe{std::mem::transmute(Repr{ptr:icolor,size:3})};
             jj.clone_from_slice(&color);
+            //jj[0]=rayon::current_num_threads() as f32;
+            
         },
         None=>{}
     }
+
+
+    //use rayon;
+    
+    //println!("num threads={:?}",rayon::current_num_threads());
+
+
 	return is_game;
 }
 
