@@ -51,7 +51,7 @@ fn rust_game_step(menu:*mut MenuGame,poses:*const [f32;2],num_poses:usize,icolor
 
 	let tr=Repr{ptr:poses,size:num_poses};
 
-	let poses:&[axgeom::Vec2]=unsafe{std::mem::transmute(tr)};
+	let poses:&[dinotreedemo::vec::Vec2]=unsafe{std::mem::transmute(tr)};
 	let (color,is_game) = menu.step(poses,verts);
 
     match color{
