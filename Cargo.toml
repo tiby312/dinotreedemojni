@@ -4,9 +4,10 @@ version = "0.1.0"
 authors = ["Ken Reed <kenakioreed@gmail.com>"]
 
 [dependencies]
-axgeom = {path = "../axgeom"}
-dinotreedemo = {path="../dinotreedemo"}
-jni = { version = "0.9", default-features = false }
+axgeom = "1.0.1"
+#dinotreedemo = {path="../dinotreedemo"}
+dinotreedemomenu = {path="../dinotreedemomenu"}
+jni = { version = "0.10.2", default-features = false }
 rayon = "0.9.*"
 
 #[target.'cfg(target_os="android")'.dependencies]

@@ -1,13 +1,21 @@
 
-extern crate dinotreedemo;
+//extern crate dinotreedemo;
+extern crate dinotreedemomenu;
 extern crate axgeom;
 extern crate rayon;
 
-use dinotreedemo::MenuGame;
-
+use dinotreedemomenu::*;
+use axgeom::*;
 use std::os::raw::{c_char, c_int};
 use std::ffi::CStr;
 use std::ptr::null_mut;
+
+#[repr(transparent)]
+#[derive(Copy,Clone,Debug,Default)]
+pub struct Vertex(pub [f32;2]);
+
+
+
 #[repr(C)]
 struct Repr<T>{
     ptr:*const T,
@@ -20,81 +28,138 @@ struct ReprMut<T>{
     size:usize,
 }
 
-fn rust_game_create(startx:c_int,starty:c_int)->(*mut MenuGame){
-	let mm=MenuGame::new(startx as usize,starty as usize);
-	Box::into_raw(Box::new(mm.0))
-}
+fn rust_game_create(startx:usize,starty:usize,radius:&mut f32,border:&mut [f32;4],icolor:&mut [f32;3])->(*mut MenuGame){
+    //let border=unsafe{&mut (*border)};
+	let (mm,game_response)=MenuGame::new();
 
-fn rust_game_destroy(menu:*mut MenuGame){
-	 drop(unsafe{Box::from_raw(menu)});
-}
-
-fn rust_game_step(menu:*mut MenuGame,poses:*const [f32;2],num_poses:usize,icolor:*mut f32,verts:*mut [f32;2],size:usize)->bool{
+    let diff=game_response.new_game_world.unwrap();
 	
+    let mut bor=dinotreedemomenu::compute_border(diff.0,[startx as f32,starty as f32]);
+        
+    let ((a,b),(c,d))=bor.get();
+
+    border[0]=a;
+    border[1]=b;
+    border[2]=c;
+    border[3]=d;
+
+    *radius=diff.1;
+
+    let cols=&game_response.color.unwrap();
+    icolor[0]=cols[0];
+    icolor[1]=cols[1];
+    icolor[2]=cols[2];
+
+
+
+    Box::into_raw(Box::new(mm))
+}
+
+fn rust_game_destroy(menu:&mut MenuGame){
+	 drop(unsafe{Box::from_raw(menu as *mut MenuGame)});
+}
+
+fn rust_game_step(
+        menu:&mut MenuGame,
+        startx:usize,
+        starty:usize,
+        poses:&[f32],
+        border:&[f32],
+        //output
+        icolor:&mut [f32],
+        new_border:&mut [f32],
+        radius:&mut f32,
+        num_verticies:&mut i32)->bool{
+	/* //TODO do this after
     if menu.is_null(){
 		return false;
 	}
-	
+	*/
 
-    let menu=unsafe{&mut (*menu)};
+    //let menu=unsafe{&mut (*menu)};
 
-    let verts={
-            #[repr(C)]
-        struct Repr<T>{
-            ptr:*const T,
-            size:usize,
-        }
 
-        let k:&mut [dinotreedemo::Vert]=unsafe{std::mem::transmute(Repr{ptr:verts,size:size})};
-        k 
+    let poses:&[Vec2]={
+        assert_eq!(poses.len()%2,0);
+        let decompose:Repr<f32>=unsafe{std::mem::transmute(poses)};
+
+        unsafe{std::mem::transmute(Repr{ptr:decompose.ptr,size:decompose.size/2})}
+	};
+
+    let border:Rect<f32>={
+        assert_eq!(border.len(),4);
+        //TODO just transmute instead?
+        Rect::new(border[0],border[1],border[2],border[3])
     };
 
-	let tr=Repr{ptr:poses,size:num_poses};
+    let icolor:&mut [f32]={
+        icolor
+    };
 
-	let poses:&[dinotreedemo::vec::Vec2]=unsafe{std::mem::transmute(tr)};
-	let (color,is_game) = menu.step(poses,verts);
+    let new_border:&mut Rect<f32>={
+        assert_eq!(new_border.len(),4);
+        let decompose:ReprMut<f32>=unsafe{std::mem::transmute(new_border)};
+        unsafe{std::mem::transmute(decompose.ptr)}
+    };
 
-    match color{
-        Some(color)=>{
-            let jj:&mut [f32]=unsafe{std::mem::transmute(Repr{ptr:icolor,size:3})};
-            jj.clone_from_slice(&color);
-            //jj[0]=rayon::current_num_threads() as f32;
-            
+    let radius:&mut f32={
+        radius
+    };
+
+    let num_verticies:&mut i32={
+        num_verticies
+    };
+
+
+    let game_response = menu.step(poses,&border);
+
+    match game_response.new_game_world{
+        Some((bod,rad))=>{
+            *radius=rad;
+            *new_border=dinotreedemomenu::compute_border(bod,[startx as f32,starty as f32]);
         },
         None=>{}
     }
 
+    match game_response.color{
+        Some(col)=>{
+            icolor.clone_from_slice(&col);
+        },
+        None=>{}
+    }
 
-    //use rayon;
-    
-    //println!("num threads={:?}",rayon::current_num_threads());
+    *num_verticies=menu.get_bots().len() as i32;
+
+
+    let is_game=game_response.is_game;
 
 
 	return is_game;
 }
 
 
-fn rust_game_num_verticies(menu:*mut MenuGame)->usize{
+fn rust_game_update_verticies(menu:*mut MenuGame,verts:&mut [f32]){
     let menu=unsafe{&mut (*menu)};
 
-    menu.get_num_verticies()
-}
-/*
-fn rust_game_verticies(menu:*mut MenuGame,verts:*mut [f32;2],size:usize){
-	let menu=unsafe{&mut (*menu)};
+    //Why does htis break it???
+    // assert_eq!(2*verts.len(),menu.get_bots().len(),"sizes do not match!!!");
+    let verts:&mut [Vertex]={
+        //assert_eq!(verts.len() % 2,0);
+            
+        let decompose:ReprMut<f32>=unsafe{std::mem::transmute(verts)};
 
-	#[repr(C)]
-	struct Repr<T>{
-	    ptr:*const T,
-	    size:usize,
-	}
+        unsafe{std::mem::transmute(ReprMut{ptr:decompose.ptr,size:decompose.size/2})}
+    };
 
-    let k:&mut [dinotreedemo::Vert]=unsafe{std::mem::transmute(Repr{ptr:verts,size:size})};
-    menu.get_verticies(k);
-	//let k:Repr<[f32;2]>=unsafe{std::mem::transmute(menu.get_verticies())};
-	//(k.ptr,k.size)
+    for (a,b) in menu.get_bots().iter().zip(verts.iter_mut()){
+        *b=Vertex(a.pos().0);
+    }
 }
-*/
+
+
+
+
+
 
 /// Expose the JNI interface for android below
 //#[cfg(target_os="android")]
@@ -108,15 +173,28 @@ pub mod android {
     use self::jni::objects::{JClass, JString};
     use self::jni::sys::{jint, jlong};
     use self::jni::sys::jfloatArray;
+    use self::jni::sys::jintArray;
+    use self::jni::sys::jboolean;
     use self::jni::objects::JByteBuffer;
     use self::jni::sys::jobject;
 
     #[no_mangle]
-    pub unsafe extern "C" fn Java_kenreed_dinotreedemo_DinoGame_gameCreate(env: JNIEnv, _: JClass, startx: jlong, starty: jlong) -> jlong {
+    pub unsafe extern "C" fn Java_kenreed_dinotreedemo_DinoGame_gameCreate(env: JNIEnv, _: JClass, startx:jint,starty:jint,radius: jfloatArray, border: jfloatArray,colors:jfloatArray) -> jlong {
         
 
-        let k=rust_game_create(startx as c_int,starty as c_int);
+        let mut mradius:[f32;1]=[0.0];
+        let mut mborder:[f32;4]=[0.0;4];
+        let mut mcolor:[f32;3]=[0.0;3];
+
+        let k=rust_game_create(startx as usize,starty as usize,&mut mradius[0],&mut mborder,&mut mcolor);
         
+
+
+        env.set_float_array_region(colors,0,&mcolor);
+        env.set_float_array_region(border,0,&mborder);
+        env.set_float_array_region(radius,0,&mradius);
+                
+
         if(conv::into_pointer(conv::into_jlong(k))!=k){
             return 0;
         }else{
@@ -126,69 +204,92 @@ pub mod android {
 
     #[no_mangle]
     pub unsafe extern "C" fn Java_kenreed_dinotreedemo_DinoGame_gameDestroy(env: JNIEnv, _: JClass, game: jlong){
-        //let game:*mut MenuGame=std::mem::transmute(game);
         let game=conv::into_pointer(game);
-        rust_game_destroy(game);
+        rust_game_destroy(unsafe{&mut *game});
     }
 
 
     #[no_mangle]
-    pub unsafe extern "C" fn Java_kenreed_dinotreedemo_DinoGame_gameNumVerticies(env: JNIEnv, _: JClass,game:jlong)->jint{
-        
+    pub unsafe extern "C" fn Java_kenreed_dinotreedemo_DinoGame_updateVerticies(env: JNIEnv, _: JClass,game:jlong,jverts:JByteBuffer){
         let game= unsafe{&mut*conv::into_pointer(game)};
-        rust_game_num_verticies(game) as jint
-        //game.get_num_verticies().len() as jint
-    }
-    #[no_mangle]
-    pub unsafe extern "C" fn Java_kenreed_dinotreedemo_DinoGame_gameStep(env: JNIEnv, _: JClass, game:jlong,poses:jfloatArray,colors:jfloatArray,jverts:JByteBuffer) ->jint {
-        
 
-        let len=env.get_array_length(poses).unwrap();
-        //let mut buf:Vec<f32>=Vec::with_capacity(len as usize);
-        let mut buf=(0..len).map(|_|0.0).collect::<Vec<f32>>();
-        
 
-        let (poses_ptr,poses_size)={
-            let buf2:&mut [f32]=&mut buf;
-            env.get_float_array_region(poses,0,buf2);
-
-    		
-
-    		let repr:Repr<f32>=std::mem::transmute(buf2);
-    		let ptr:*mut [f32;2]=std::mem::transmute(repr.ptr);
-    		let size=repr.size/2;
-            (ptr,size)
-		};
-
-        let game=conv::into_pointer(game);
-		//let game:*mut MenuGame=std::mem::transmute(game);
-
-        let mut col=[0.0f32;3];
-        let colsptr:*mut f32=std::mem::transmute(&mut col[0]);
-
-        let (verts_ptr,verts_size)={       
+        let verts:&mut [f32]={       
             let (buffptr,bufflen)={
                 let buff:&mut [u8]=env.get_direct_buffer_address(jverts).unwrap();
                 let k:ReprMut<u8>=unsafe{std::mem::transmute(buff)};
                 (k.ptr,k.size)
             };
 
-            let new_len=(bufflen/4)/2;
+            let new_len=(bufflen/4);
             //let kk:&mut [f32;2]=unsafe{std::mem::transmute(buffptr)};
-            let data:&mut [[f32;2]]=unsafe{std::mem::transmute(Repr{ptr:buffptr,size:new_len})};
-
-
-            let ff:ReprMut<[f32;2]>=unsafe{std::mem::transmute(data)};
-            (ff.ptr,ff.size)
+            unsafe{std::mem::transmute(Repr{ptr:buffptr,size:new_len})}
         };
-		let val = rust_game_step(game,poses_ptr,poses_size,colsptr,verts_ptr,verts_size);
 
-        if col.iter().fold(0.0,|acc,&x|acc+x)!=0.0{
-            env.set_float_array_region(colors,0,&col);
-        }
 
-        if val{1}else{0}
+        rust_game_update_verticies(game,verts)
     }
+
+    
+    #[no_mangle]
+    pub unsafe extern "C" fn Java_kenreed_dinotreedemo_DinoGame_gameStep(
+            env: JNIEnv,
+             _: JClass,
+            game:jlong,
+            startx:jint,
+            starty:jint,
+            poses:jfloatArray,
+            border:jfloatArray,
+            //outputs
+            new_border:jfloatArray,
+            radius:jfloatArray,
+            colors:jfloatArray,
+            num_verticies:jintArray)->jint  {
+        
+
+        let poses={
+            let len=env.get_array_length(poses).unwrap();
+            let mut po=(0..len).map(|_|0.0).collect::<Vec<f32>>();    
+            env.get_float_array_region(poses,0,&mut po).unwrap();
+            po
+		};
+
+        let current_border={
+            let len=env.get_array_length(border).unwrap();
+            let mut bo=(0..len).map(|_|0.0).collect::<Vec<f32>>();    
+            env.get_float_array_region(border,0,&mut bo).unwrap();
+            bo
+        };
+
+
+        let mut mradius:[f32;1]=[0.0];
+        let mut mborder:[f32;4]=[0.0;4];
+        let mut mcolor:[f32;3]=[0.0;3];
+        let mut mnum_verticies:[i32;1]=[0];
+
+
+        let game=conv::into_pointer(game);
+
+        
+		let is_game = rust_game_step(unsafe{&mut *game},startx as usize,starty as usize,&poses,&current_border,&mut mcolor,&mut mborder,&mut mradius[0],&mut mnum_verticies[0]);
+
+
+
+        env.set_float_array_region(colors,0,&mcolor);
+        env.set_float_array_region(new_border,0,&mborder);
+        env.set_float_array_region(radius,0,&mradius);
+        env.set_int_array_region(num_verticies,0,&mnum_verticies);
+                
+        if is_game{
+            1
+        }else{
+            0
+        }
+    }
+    
+
+
+
 
     #[cfg(target_pointer_width = "32")]
     mod conv{
@@ -215,58 +316,8 @@ pub mod android {
             unsafe{std::mem::transmute(a)}
         }
     }
-
-    /*
-    #[no_mangle]           
-    pub unsafe extern "C" fn Java_kenreed_dinotreedemo_DinoGame_gameVerticies(env: JNIEnv, _: JClass,game:jlong,jbuff:JByteBuffer) {
-        //let game:*mut MenuGame=std::mem::transmute(game);
-
-        
-        let game=conv::into_pointer(game);
-      
-
-        
-        let (buffptr,bufflen)={
-            let buff:&mut [u8]=env.get_direct_buffer_address(jbuff).unwrap();
-            let k:ReprMut<u8>=unsafe{std::mem::transmute(buff)};
-            (k.ptr,k.size)
-        };
-
-        let new_len=(bufflen/4)/2;
-        //let kk:&mut [f32;2]=unsafe{std::mem::transmute(buffptr)};
-        let data:&mut [[f32;2]]=unsafe{std::mem::transmute(Repr{ptr:buffptr,size:new_len})};
-
-
-        let ff:ReprMut<[f32;2]>=unsafe{std::mem::transmute(data)};
-        rust_game_verticies(game,ff.ptr,ff.size);
-        /*
-		
-        let data:(*const [f32;2],usize)=rust_game_verticies(game);
-        
-        let repr:Repr<u8>=Repr{ptr:std::mem::transmute(data.0),size:data.1*2*std::mem::size_of::<f32>()};
-        let buf:&mut [u8] =std::mem::transmute(repr);
-        let ss=buf.len();
-        let dest=env.get_direct_buffer_address(jbuff).unwrap();
-
-        //TODO remove this copy!
-        dest[0..ss].clone_from_slice(buf);
-        
-        //let bb=env.new_direct_byte_buffer(buf).unwrap();
-        //std::mem::transmute(bb)
-        */
-    }
-    */
+    
 
 }
 
 
-
-
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
-    }
-}
