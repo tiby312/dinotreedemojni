@@ -2,9 +2,10 @@
 name = "dinotreedemojni"
 version = "0.1.0"
 authors = ["Ken Reed <kenakioreed@gmail.com>"]
+edition = "2018"
 
 [dependencies]
-axgeom = "1.0.1"
+axgeom = "1.0.2"
 #dinotreedemo = {path="../dinotreedemo"}
 dinotreedemomenu = {path="../dinotreedemomenu"}
 jni = { version = "0.10.2", default-features = false }
