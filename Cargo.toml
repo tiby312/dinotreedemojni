@@ -5,17 +5,13 @@ authors = ["Ken Reed <kenakioreed@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-axgeom = "1.0.2"
-#dinotreedemo = {path="../dinotreedemo"}
+axgeom = "1.2"
+num_cpus = "*"
 dinotreedemomenu = {path="../dinotreedemomenu"}
 jni = { version = "0.10.2", default-features = false }
-rayon = "0.9.*"
-
 #[target.'cfg(target_os="android")'.dependencies]
 #jni = { version = "0.9", default-features = false }
-
-
-
+rayon ="1.2"
 [lib]
 name = "sample"
 crate-type = ["staticlib", "cdylib"]

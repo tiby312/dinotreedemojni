@@ -2,13 +2,13 @@
 //extern crate dinotreedemo;
 extern crate dinotreedemomenu;
 extern crate axgeom;
-extern crate rayon;
-
 use dinotreedemomenu::*;
 use axgeom::*;
 use std::os::raw::{c_char, c_int};
 use std::ffi::CStr;
 use std::ptr::null_mut;
+
+
 
 #[repr(transparent)]
 #[derive(Copy,Clone,Debug,Default)]
@@ -29,6 +29,9 @@ struct ReprMut<T>{
 }
 
 fn rust_game_create(startx:usize,starty:usize,radius:&mut f32,border:&mut [f32;4],icolor:&mut [f32;3])->(*mut MenuGame){
+    rayon::ThreadPoolBuilder::new().num_threads(num_cpus::get_physical()).build_global().unwrap();
+
+    
     //let border=unsafe{&mut (*border)};
 	let (mm,game_response)=MenuGame::new();
 
@@ -79,7 +82,7 @@ fn rust_game_step(
     //let menu=unsafe{&mut (*menu)};
 
 
-    let poses:&[Vec2]={
+    let poses:&[Vec2<f32>]={
         assert_eq!(poses.len()%2,0);
         let decompose:Repr<f32>=unsafe{std::mem::transmute(poses)};
 
@@ -152,7 +155,7 @@ fn rust_game_update_verticies(menu:*mut MenuGame,verts:&mut [f32]){
     };
 
     for (a,b) in menu.get_bots().iter().zip(verts.iter_mut()){
-        *b=Vertex(a.pos().0);
+        *b=Vertex([a.pos.x,a.pos.y]);
     }
 }
 
