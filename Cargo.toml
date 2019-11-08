@@ -7,11 +7,15 @@ edition = "2018"
 [dependencies]
 axgeom = "1.2"
 num_cpus = "*"
-dinotreedemomenu = {path="../dinotreedemomenu"}
+dinotreedemomenu = {git="https://github.com/tiby312/dinotreedemomenu.git"}
 jni = { version = "0.10.2", default-features = false }
-#[target.'cfg(target_os="android")'.dependencies]
-#jni = { version = "0.9", default-features = false }
 rayon ="1.2"
+
+
+[patch.'https://github.com/tiby312/dinotreedemomenu']
+dinotreedemomenu = {path="../dinotreedemomenu"}
+
+
 [lib]
 name = "sample"
 crate-type = ["staticlib", "cdylib"]

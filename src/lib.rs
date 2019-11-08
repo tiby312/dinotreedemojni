@@ -1,12 +1,11 @@
 
-//extern crate dinotreedemo;
 extern crate dinotreedemomenu;
 extern crate axgeom;
 use dinotreedemomenu::*;
 use axgeom::*;
-use std::os::raw::{c_char, c_int};
-use std::ffi::CStr;
-use std::ptr::null_mut;
+//use std::os::raw::{c_char, c_int};
+//use std::ffi::CStr;
+//use std::ptr::null_mut;
 
 
 
@@ -28,12 +27,20 @@ struct ReprMut<T>{
     size:usize,
 }
 
-fn rust_game_create(startx:usize,starty:usize,radius:&mut f32,border:&mut [f32;4],icolor:&mut [f32;3])->(*mut MenuGame){
+
+pub struct MenuGameJni{
+    game:MenuGame,
+    symbols:Symbols
+}
+
+
+fn rust_game_create(startx:usize,starty:usize,radius:&mut f32,border:&mut [f32;4],icolor:&mut [f32;3])->(*mut MenuGameJni){
     rayon::ThreadPoolBuilder::new().num_threads(num_cpus::get_physical()).build_global().unwrap();
 
+    let symbols=Symbols::new();
     
-    //let border=unsafe{&mut (*border)};
-	let (mm,game_response)=MenuGame::new();
+    
+    let (mm,game_response)=MenuGame::new(&symbols);
 
     let diff=game_response.new_game_world.unwrap();
 	
@@ -54,16 +61,15 @@ fn rust_game_create(startx:usize,starty:usize,radius:&mut f32,border:&mut [f32;4
     icolor[2]=cols[2];
 
 
-
-    Box::into_raw(Box::new(mm))
+    Box::into_raw(Box::new(MenuGameJni{game:mm,symbols}))
 }
 
-fn rust_game_destroy(menu:&mut MenuGame){
-	 drop(unsafe{Box::from_raw(menu as *mut MenuGame)});
+fn rust_game_destroy(menu:&mut MenuGameJni){
+	 drop(unsafe{Box::from_raw(menu as *mut MenuGameJni)});
 }
 
 fn rust_game_step(
-        menu:&mut MenuGame,
+        menu:&mut MenuGameJni,
         startx:usize,
         starty:usize,
         poses:&[f32],
@@ -73,14 +79,7 @@ fn rust_game_step(
         new_border:&mut [f32],
         radius:&mut f32,
         num_verticies:&mut i32)->bool{
-	/* //TODO do this after
-    if menu.is_null(){
-		return false;
-	}
-	*/
-
-    //let menu=unsafe{&mut (*menu)};
-
+	
 
     let poses:&[Vec2<f32>]={
         assert_eq!(poses.len()%2,0);
@@ -114,7 +113,7 @@ fn rust_game_step(
     };
 
 
-    let game_response = menu.step(poses,&border);
+    let game_response = menu.game.step(poses,&border,&menu.symbols);
 
     match game_response.new_game_world{
         Some((bod,rad))=>{
@@ -131,7 +130,7 @@ fn rust_game_step(
         None=>{}
     }
 
-    *num_verticies=menu.get_bots().len() as i32;
+    *num_verticies=menu.game.get_bots().len() as i32;
 
 
     let is_game=game_response.is_game;
@@ -141,7 +140,7 @@ fn rust_game_step(
 }
 
 
-fn rust_game_update_verticies(menu:*mut MenuGame,verts:&mut [f32]){
+fn rust_game_update_verticies(menu:*mut MenuGameJni,verts:&mut [f32]){
     let menu=unsafe{&mut (*menu)};
 
     //Why does htis break it???
@@ -154,7 +153,7 @@ fn rust_game_update_verticies(menu:*mut MenuGame,verts:&mut [f32]){
         unsafe{std::mem::transmute(ReprMut{ptr:decompose.ptr,size:decompose.size/2})}
     };
 
-    for (a,b) in menu.get_bots().iter().zip(verts.iter_mut()){
+    for (a,b) in menu.game.get_bots().iter().zip(verts.iter_mut()){
         *b=Vertex([a.pos.x,a.pos.y]);
     }
 }
@@ -297,12 +296,12 @@ pub mod android {
     #[cfg(target_pointer_width = "32")]
     mod conv{
         use super::*;
-        pub fn into_jlong(a:*mut MenuGame)->jlong{
+        pub fn into_jlong(a:*mut MenuGameJni)->jlong{
             let a:u32=unsafe{std::mem::transmute(a)};
 
             a as jlong
         }
-        pub fn into_pointer(a:jlong)->*mut MenuGame{
+        pub fn into_pointer(a:jlong)->*mut MenuGameJni{
             //let mut a:u32=(a.to_be()&0x00000000FFFFFFFF) as u32;
             //u32::from_be(a);
             let a=a as u32;
@@ -312,10 +311,10 @@ pub mod android {
     #[cfg(target_pointer_width = "64")]
     mod conv{
         use super::*;
-        pub fn into_jlong(a:*mut MenuGame)->jlong{
+        pub fn into_jlong(a:*mut MenuGameJni)->jlong{
             unsafe{std::mem::transmute(a)}
         }
-        pub fn into_pointer(a:jlong)->*mut MenuGame{
+        pub fn into_pointer(a:jlong)->*mut MenuGameJni{
             unsafe{std::mem::transmute(a)}
         }
     }
