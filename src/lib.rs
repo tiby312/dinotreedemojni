@@ -44,7 +44,7 @@ fn rust_game_create(startx:usize,starty:usize,radius:&mut f32,border:&mut [f32;4
 
     let diff=game_response.new_game_world.unwrap();
 	
-    let mut bor=dinotreedemomenu::compute_border(diff.0,[startx as f32,starty as f32]);
+    let bor=dinotreedemomenu::compute_border(diff.0,[startx as f32,starty as f32]);
         
     let ((a,b),(c,d))=bor.get();
 
@@ -172,13 +172,13 @@ pub mod android {
 
     use super::*;
     use self::jni::JNIEnv;
-    use self::jni::objects::{JClass, JString};
+    use self::jni::objects::{JClass};
     use self::jni::sys::{jint, jlong};
     use self::jni::sys::jfloatArray;
     use self::jni::sys::jintArray;
-    use self::jni::sys::jboolean;
+    
     use self::jni::objects::JByteBuffer;
-    use self::jni::sys::jobject;
+    
 
     #[no_mangle]
     pub unsafe extern "C" fn Java_kenreed_dinotreedemo_DinoGame_gameCreate(env: JNIEnv, _: JClass, startx:jint,starty:jint,radius: jfloatArray, border: jfloatArray,colors:jfloatArray) -> jlong {
@@ -197,7 +197,7 @@ pub mod android {
         env.set_float_array_region(radius,0,&mradius);
                 
 
-        if(conv::into_pointer(conv::into_jlong(k))!=k){
+        if conv::into_pointer(conv::into_jlong(k))!=k {
             return 0;
         }else{
             conv::into_jlong(k)
@@ -205,7 +205,7 @@ pub mod android {
     }
 
     #[no_mangle]
-    pub unsafe extern "C" fn Java_kenreed_dinotreedemo_DinoGame_gameDestroy(env: JNIEnv, _: JClass, game: jlong){
+    pub unsafe extern "C" fn Java_kenreed_dinotreedemo_DinoGame_gameDestroy(_env: JNIEnv, _: JClass, game: jlong){
         let game=conv::into_pointer(game);
         rust_game_destroy(unsafe{&mut *game});
     }
@@ -223,7 +223,7 @@ pub mod android {
                 (k.ptr,k.size)
             };
 
-            let new_len=(bufflen/4);
+            let new_len=bufflen/4;
             //let kk:&mut [f32;2]=unsafe{std::mem::transmute(buffptr)};
             unsafe{std::mem::transmute(Repr{ptr:buffptr,size:new_len})}
         };
