@@ -34,11 +34,12 @@ fn rust_game_create(
     border: &mut [f32; 4],
     icolor: &mut [f32; 3],
 ) -> (*mut MenuGameJni) {
-    rayon::ThreadPoolBuilder::new()
+    
+    //This will fail after the first time.
+    let _ = rayon::ThreadPoolBuilder::new()
         .num_threads(num_cpus::get_physical())
-        .build_global()
-        .unwrap();
-
+        .build_global();
+    
     let symbols = Symbols::new();
 
     let (mm, game_response) = MenuGame::new(&symbols);
@@ -194,6 +195,8 @@ pub mod android {
             &mut mborder,
             &mut mcolor,
         );
+
+        dbg!("YOOOOOOOO",k);
 
         env.set_float_array_region(colors, 0, &mcolor).unwrap();
         env.set_float_array_region(border, 0, &mborder).unwrap();

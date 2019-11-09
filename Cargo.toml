@@ -12,6 +12,9 @@ jni = { version = "0.10.2", default-features = false }
 rayon ="1.2"
 
 
+[patch.crates-io]
+dinotree = {path="../dinotree_alg/dinotree"}
+
 [patch.'https://github.com/tiby312/dinotreedemomenu']
 dinotreedemomenu = {path="../dinotreedemomenu"}
 
